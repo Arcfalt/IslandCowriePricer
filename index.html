@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Island Sanctuary Price Check</title>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			margin: 0;
+			background: #111;
+			color: #eee;
+			padding: 20px
+		}
+
+		h1 {
+			font-size: 24px;
+			margin-bottom: 8px
+		}
+
+		.controls {
+			margin-bottom: 20px
+		}
+
+		input,
+		select,
+		button {
+			padding: 8px;
+			margin: 4px;
+			border-radius: 6px;
+			border: 1px solid #555;
+			background: #222;
+			color: #eee
+		}
+
+		button {
+			cursor: pointer;
+			background: #444
+		}
+
+		ul {
+			list-style: none;
+			padding: 0
+		}
+
+		li {
+			background: #1b1b1b;
+			border: 1px solid #333;
+			margin-bottom: 10px;
+			padding: 12px;
+			border-radius: 8px
+		}
+
+		.muted {
+			color: #aaa
+		}
+
+		.row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 8px
+		}
+
+		.pill {
+			display: inline-block;
+			padding: 2px 8px;
+			border: 1px solid #333;
+			border-radius: 999px;
+			font-size: 12px;
+			margin-left: 6px
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Island Sanctuary Universalis Price Check</h1>
+	<div class="controls">
+		<label>Datacenter: <input id="datacenter" type="text" value="Faerie" /></label>
+		<label>
+			Use source:
+			<select id="sourceSelect">
+				<option value="min" selected>minListing</option>
+				<option value="recent">recentPurchase</option>
+				<option value="avg">averageSalePrice</option>
+				<option value="vel">dailySaleVelocity</option>
+			</select>
+		</label>
+		<label>
+			Use scope:
+			<select id="scopeSelect">
+				<option value="world" selected>world</option>
+				<option value="dc">dc</option>
+				<option value="region">region</option>
+			</select>
+		</label>
+		<label>
+			Sort by:
+			<select id="sortSelect">
+				<option value="factor" selected>profit factor</option>
+				<option value="profit">raw profit</option>
+			</select>
+		</label>
+		<button id="fetchBtn">Fetch Prices</button>
+	</div>
+	<div id="status" class="muted">Idle</div>
+	<ul id="results"></ul>
+
+	<script>
+		const ITEM_DATA = {
+			30116: { buy: 500, name: "Ruby Red Dye" },
+			30117: { buy: 500, name: "Cherry Pink Dye" },
+			30118: { buy: 500, name: "Canary Yellow Dye" },
+			30119: { buy: 500, name: "Vanilla Yellow Dye" },
+			30120: { buy: 500, name: "Dragoon Blue Dye" },
+			30121: { buy: 500, name: "Turquoise Blue Dye" },
+			30123: { buy: 2500, name: "Pearl White Dye" },
+			30124: { buy: 2500, name: "Metallic Brass Dye" },
+			30122: { buy: 2500, name: "Gunmetal Black Dye" },
+			33922: { buy: 750, name: "Gatherer's Guerdon Materia IX" },
+			33923: { buy: 750, name: "Gatherer's Guile Materia IX" },
+			33924: { buy: 750, name: "Gatherer's Grasp Materia IX" },
+			33925: { buy: 750, name: "Craftsman's Competence Materia IX" },
+			33926: { buy: 750, name: "Craftsman's Cunning Materia IX" },
+			33927: { buy: 750, name: "Craftsman's Command Materia IX" },
+			33935: { buy: 1500, name: "Gatherer's Guerdon Materia X" },
+			33936: { buy: 1500, name: "Gatherer's Guile Materia X" },
+			33937: { buy: 1500, name: "Gatherer's Grasp Materia X" },
+			33938: { buy: 1500, name: "Craftsman's Competence Materia X" },
+			33939: { buy: 1500, name: "Craftsman's Cunning Materia X" },
+			33940: { buy: 1500, name: "Craftsman's Command Materia X" }
+		};
+
+		const ITEMS = Object.keys(ITEM_DATA).join(',');
+
+		const status = document.getElementById('status');
+		const results = document.getElementById('results');
+		const datacenterInput = document.getElementById('datacenter');
+		const fetchBtn = document.getElementById('fetchBtn');
+		const sourceSelect = document.getElementById('sourceSelect');
+		const scopeSelect = document.getElementById('scopeSelect');
+		const sortSelect = document.getElementById('sortSelect');
+
+		fetchBtn.addEventListener('click', run);
+		sourceSelect.addEventListener('change', render);
+		scopeSelect.addEventListener('change', render);
+		sortSelect.addEventListener('change', render);
+
+		const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+		let baseRows = [];
+
+		function pick(obj, scope, field) {
+			if (!obj) return null;
+			const src = obj[scope] ?? null;
+			return src ? src[field] ?? null : null;
+		}
+
+		async function run() {
+			status.textContent = 'Fetching...';
+			results.innerHTML = '';
+			try {
+				const dc = datacenterInput.value.trim() || 'Faerie';
+				const url = `https://universalis.app/api/v2/aggregated/${encodeURIComponent(dc)}/${ITEMS}`;
+				const res = await fetch(url);
+				if (!res.ok) throw new Error('HTTP ' + res.status);
+				const data = await res.json();
+
+				baseRows = (data.results || []).map(r => {
+					const id = r.itemId;
+					const { buy, name } = ITEM_DATA[id] || {};
+					const minObj = r?.nq?.minListing;
+					const recentObj = r?.nq?.recentPurchase;
+					const avgObj = r?.nq?.averageSalePrice;
+					const velObj = r?.nq?.dailySaleVelocity;
+					return { id, name: name || `Item ${id}`, buy, minObj, recentObj, avgObj, velObj };
+				});
+
+				render();
+				status.textContent = `Fetched ${baseRows.length} items from ${datacenterInput.value || 'Faerie'}`;
+			} catch (err) {
+				console.error(err);
+				status.textContent = 'Error: ' + err.message;
+			}
+		}
+
+		function computeDerived(row, sourceKey, scope) {
+			const buy = row.buy;
+			let srcVal = null;
+			if (sourceKey === 'min') srcVal = pick(row.minObj, scope, 'price');
+			else if (sourceKey === 'recent') srcVal = pick(row.recentObj, scope, 'price');
+			else if (sourceKey === 'avg') srcVal = pick(row.avgObj, scope, 'price');
+			else if (sourceKey === 'vel') srcVal = pick(row.velObj, scope, 'quantity');
+
+			const isNumeric = typeof srcVal === 'number' && Number.isFinite(srcVal);
+			const profit = isNumeric && buy != null ? (srcVal - buy) : null;
+			const factor = isNumeric && buy > 0 ? (srcVal / buy) : null;
+			return { profit, factor, srcVal };
+		}
+
+		function render() {
+			const sourceKey = sourceSelect.value || 'min';
+			const scope = scopeSelect.value || 'world';
+			const sortMode = sortSelect.value || 'factor';
+
+			const rows = baseRows.map(r => {
+				const d = computeDerived(r, sourceKey, scope);
+				return { ...r, ...d };
+			});
+
+			rows.sort((a, b) => {
+				const aKey = sortMode === 'profit' ? a.profit : a.factor;
+				const bKey = sortMode === 'profit' ? b.profit : b.factor;
+				const av = aKey ?? -Infinity;
+				const bv = bKey ?? -Infinity;
+				return bv - av;
+			});
+
+			results.innerHTML = '';
+			const frag = document.createDocumentFragment();
+			rows.forEach(row => {
+				const li = document.createElement('li');
+				const minP = pick(row.minObj, scope, 'price');
+				const recentP = pick(row.recentObj, scope, 'price');
+				const avgP = pick(row.avgObj, scope, 'price');
+				const velQ = pick(row.velObj, scope, 'quantity');
+				li.innerHTML = `
+					<div><strong><a href="https://universalis.app/market/${row.id}" target="_blank" rel="noopener noreferrer">${row.name} (ID ${row.id})</a></strong>
+						<span class="pill">buy: ${row.buy != null ? nf.format(row.buy) : 'n/a'}</span>
+						<span class="pill">profit: ${row.profit != null ? nf.format(row.profit) : 'n/a'}</span>
+						<span class="pill">factor: ${row.factor != null ? row.factor.toFixed(2) : 'n/a'}</span>
+						<span class="pill">source: ${sourceKey}</span>
+						<span class="pill">scope: ${scope}</span>
+					</div>
+					<div class="muted">minListing: ${minP != null ? nf.format(minP) : 'n/a'}</div>
+					<div class="muted">recentPurchase: ${recentP != null ? nf.format(recentP) : 'n/a'}</div>
+					<div class="muted">averageSalePrice: ${avgP != null ? nf.format(avgP) : 'n/a'}</div>
+					<div class="muted">dailySaleVelocity: ${velQ != null ? nf.format(velQ) : 'n/a'}</div>
+				`;
+				frag.appendChild(li);
+			});
+			results.appendChild(frag);
+		}
+	</script>
+</body>
+
+</html>
