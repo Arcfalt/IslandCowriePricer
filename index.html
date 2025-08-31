@@ -185,7 +185,9 @@
 		scopeSelect.addEventListener('change', render);
 		sortSelect.addEventListener('change', render);
 
-		const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+		const nfGil = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+		const nfQty = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+		const nfFactor = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		let baseRows = [];
 		let ctrl; // AbortController for in-flight requests
 
@@ -258,6 +260,57 @@
 			return { srcVal, profit, factor };
 		}
 
+		// Reusable DOM nodes keyed by item id
+		const nodeById = new Map();
+		const refsById = new Map();
+
+		function buildRowNode(row) {
+			const li = document.createElement('li');
+
+			// Title row with link and pills
+			const title = document.createElement('div');
+			const strong = document.createElement('strong');
+			const a = document.createElement('a');
+			a.href = `https://universalis.app/market/${row.id}`;
+			a.target = '_blank';
+			a.rel = 'noopener noreferrer';
+			a.textContent = row.name;
+			strong.appendChild(a);
+			title.appendChild(strong);
+
+			const pillFactor = document.createElement('span'); pillFactor.className = 'pill';
+			const pillBuy = document.createElement('span'); pillBuy.className = 'pill';
+			const pillProfit = document.createElement('span'); pillProfit.className = 'pill';
+			title.append(pillFactor, pillBuy, pillProfit);
+			li.appendChild(title);
+
+			// Detail rows
+			const dMin = document.createElement('div'); dMin.className = 'muted';
+			const dRecent = document.createElement('div'); dRecent.className = 'muted';
+			const dAvg = document.createElement('div'); dAvg.className = 'muted';
+			const dVel = document.createElement('div'); dVel.className = 'muted';
+			li.append(dMin, dRecent, dAvg, dVel);
+
+			refsById.set(row.id, { a, pillFactor, pillBuy, pillProfit, dMin, dRecent, dAvg, dVel });
+			return li;
+		}
+
+		function updateRowNode(li, row, scope) {
+			const r = refsById.get(row.id);
+			if (!r) return;
+			r.a.textContent = row.name;
+			r.a.href = `https://universalis.app/market/${row.id}`;
+			r.pillFactor.textContent = `${LABELS.factor}: ${row.factor != null ? nfFactor.format(row.factor) : 'n/a'}`;
+			r.pillBuy.textContent = `${LABELS.buy}: ${row.buy != null ? nfGil.format(row.buy) : 'n/a'}`;
+			r.pillProfit.textContent = `${LABELS.profit}: ${row.profit != null ? nfGil.format(row.profit) : 'n/a'}`;
+
+			const vv = row.v?.[scope] || {};
+			r.dMin.textContent = `${LABELS.min}: ${Number.isFinite(vv.min) ? nfGil.format(vv.min) : 'n/a'}`;
+			r.dRecent.textContent = `${LABELS.recent}: ${Number.isFinite(vv.recent) ? nfGil.format(vv.recent) : 'n/a'}`;
+			r.dAvg.textContent = `${LABELS.avg}: ${Number.isFinite(vv.avg) ? nfGil.format(vv.avg) : 'n/a'}`;
+			r.dVel.textContent = `${LABELS.vel}: ${Number.isFinite(vv.vel) ? nfQty.format(vv.vel) : 'n/a'}`;
+		}
+
 		function render() {
 			const sourceKey = sourceSelect.value || 'min';
 			const scope = scopeSelect.value || 'world';
@@ -274,52 +327,14 @@
 				return String(a.name).localeCompare(String(b.name));
 			});
 
-			results.innerHTML = '';
 			const frag = document.createDocumentFragment();
 			rows.forEach(row => {
-				const li = document.createElement('li');
-
-				// Title row with link and pills
-				const title = document.createElement('div');
-				const strong = document.createElement('strong');
-				const a = document.createElement('a');
-				a.href = `https://universalis.app/market/${row.id}`;
-				a.target = '_blank';
-				a.rel = 'noopener noreferrer';
-				a.textContent = row.name;
-				strong.appendChild(a);
-				title.appendChild(strong);
-
-				const mkPill = (text) => {
-					const s = document.createElement('span');
-					s.className = 'pill';
-					s.textContent = text;
-					return s;
-				};
-
-				title.append(
-					mkPill(`${LABELS.factor}: ${row.factor != null ? row.factor.toFixed(2) : 'n/a'}`),
-					mkPill(`${LABELS.buy}: ${row.buy != null ? nf.format(row.buy) : 'n/a'}`),
-					mkPill(`${LABELS.profit}: ${row.profit != null ? nf.format(row.profit) : 'n/a'}`)
-				);
-				li.appendChild(title);
-
-				// Detail rows
-				[
-					[LABELS.min, row.v?.[scope]?.min ?? null],
-					[LABELS.recent, row.v?.[scope]?.recent ?? null],
-					[LABELS.avg, row.v?.[scope]?.avg ?? null],
-					[LABELS.vel, row.v?.[scope]?.vel ?? null],
-				].forEach(([label, val]) => {
-					const d = document.createElement('div');
-					d.className = 'muted';
-					d.textContent = `${label}: ${val != null ? nf.format(val) : 'n/a'}`;
-					li.appendChild(d);
-				});
-
+				let li = nodeById.get(row.id);
+				if (!li) { li = buildRowNode(row); nodeById.set(row.id, li); }
+				updateRowNode(li, row, scope);
 				frag.appendChild(li);
 			});
-			results.appendChild(frag);
+			results.replaceChildren(frag);
 		}
 	</script>
 </body>
