@@ -98,7 +98,8 @@
 		}
 
 		.combo-wrapper input {
-			padding-right: 24px; /* leave space for arrow */
+			padding-right: 24px;
+			/* leave space for arrow */
 		}
 	</style>
 </head>
@@ -142,35 +143,8 @@
 	<ul id="results"></ul>
 
 	<script>
-		// List of known datacenters. Users can still type anything in the box.
-		const DC_LIST = [
-			"North-America",
-			"Aether",
-			"Adamantoise", "Cactuar", "Faerie", "Gilgamesh", "Jenova", "Midgardsormr", "Sargatanas", "Siren",
-			"Crystal",
-			"Balmung", "Brynhildr", "Coeurl", "Diabolos", "Goblin", "Malboro", "Mateus", "Zalera",
-			"Dynamis",
-			"Cuchulainn", "Golem", "Halicarnassus", "Kraken", "Maduin", "Marilith", "Rafflesia", "Seraph",
-			"Primal",
-			"Behemoth", "Excalibur", "Exodus", "Famfrit", "Hyperion", "Lamia", "Leviathan", "Ultros",
-			"Europe",
-			"Chaos",
-			"Cerberus", "Louisoix", "Moogle", "Omega", "Phantom", "Ragnarok", "Sagittarius", "Spriggan",
-			"Light",
-			"Alpha", "Lich", "Odin", "Phoenix", "Raiden", "Shiva", "Twintania", "Zodiark",
-			"Japan",
-			"Elemental",
-			"Aegis", "Atomos", "Carbuncle", "Garuda", "Gungnir", "Kujata", "Tonberry", "Typhon",
-			"Gaia",
-			"Alexander", "Bahamut", "Durandal", "Fenrir", "Ifrit", "Ridill", "Tiamat", "Ultima",
-			"Mana",
-			"Anima", "Asura", "Chocobo", "Hades", "Ixion", "Masamune", "Pandaemonium", "Titan",
-			"Meteor",
-			"Belias", "Mandragora", "Ramuh", "Shinryu", "Unicorn", "Valefor", "Yojimbo", "Zeromus",
-			"Oceania",
-			"Materia",
-			"Bismarck", "Ravana", "Sephirot", "Sophia", "Zurvan"
-		];
+		// Directory will be filled dynamically from Universalis endpoints.
+		let DIRECTORY = []; // combined list of regions, datacenters, and worlds
 
 		const LABELS = {
 			buy: "Cowrie Cost",
@@ -235,15 +209,51 @@
 			el.addEventListener(evt, () => localStorage.setItem(id, el.value));
 		});
 
-		// Populate datacenter datalist on load
-		(function populateDCList() {
+		// Build datalist from a simple string array
+		function populateDCList(list) {
 			const dl = document.getElementById('dcList');
 			if (!dl) return;
 			dl.innerHTML = '';
 			const frag = document.createDocumentFragment();
-			DC_LIST.forEach(dc => { const opt = document.createElement('option'); opt.value = dc; frag.appendChild(opt); });
+			list.forEach(name => { const opt = document.createElement('option'); opt.value = name; frag.appendChild(opt); });
 			dl.appendChild(frag);
-		})();
+		}
+
+		// Fetch regions/DCs/worlds and construct a combined list
+		async function loadDirectory() {
+			try {
+				const [dcRes, worldRes] = await Promise.all([
+					fetch('https://universalis.app/api/v2/data-centers'),
+					fetch('https://universalis.app/api/v2/worlds')
+				]);
+				if (!dcRes.ok || !worldRes.ok) throw new Error('Directory HTTP ' + (dcRes.status || '') + '/' + (worldRes.status || ''));
+				const [dcArr, worldArr] = await Promise.all([dcRes.json(), worldRes.json()]);
+				// Map world id to name
+				const worldById = new Map(worldArr.map(w => [w.id, w.name]));
+				// Collect unique regions, dcs and world names in the desired order: Region -> DC -> Worlds
+				const seenRegion = new Set();
+				const seenDC = new Set();
+				const seenWorld = new Set();
+				const out = [];
+				for (const dc of dcArr) {
+					if (dc.region && !seenRegion.has(dc.region)) { seenRegion.add(dc.region); out.push(dc.region); }
+					if (dc.name && !seenDC.has(dc.name)) { seenDC.add(dc.name); out.push(dc.name); }
+					for (const wid of dc.worlds || []) {
+						const wname = worldById.get(wid);
+						if (wname && !seenWorld.has(wname)) { seenWorld.add(wname); out.push(wname); }
+					}
+				}
+				DIRECTORY = out;
+				populateDCList(DIRECTORY);
+			} catch (e) {
+				console.warn('Directory load failed:', e);
+				// fallback to current input only
+				populateDCList([datacenterInput.value || 'Faerie']);
+			}
+		}
+
+		// Kick off directory load
+		loadDirectory();
 
 		fetchBtn.addEventListener('click', run);
 		sourceSelect.addEventListener('change', render);
