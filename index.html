@@ -70,6 +70,16 @@
 			font-size: 12px;
 			margin-left: 6px
 		}
+
+		a {
+			color: #99C9FF;
+			text-decoration: none;
+		}
+
+		a:hover {
+			color: #D1E9FF;
+			text-decoration: underline;
+		}
 	</style>
 </head>
 
@@ -80,25 +90,24 @@
 		<label>
 			Use source:
 			<select id="sourceSelect">
-				<option value="min" selected>minListing</option>
-				<option value="recent">recentPurchase</option>
-				<option value="avg">averageSalePrice</option>
-				<option value="vel">dailySaleVelocity</option>
+				<option value="min" selected>Cheapest Listing</option>
+				<option value="recent">Most Recent Sold</option>
+				<option value="avg">Average Sale Price</option>
 			</select>
 		</label>
 		<label>
 			Use scope:
 			<select id="scopeSelect">
-				<option value="world" selected>world</option>
-				<option value="dc">dc</option>
-				<option value="region">region</option>
+				<option value="world" selected>World</option>
+				<option value="dc">Datacenter</option>
+				<option value="region">Region</option>
 			</select>
 		</label>
 		<label>
 			Sort by:
 			<select id="sortSelect">
-				<option value="factor" selected>profit factor</option>
-				<option value="profit">raw profit</option>
+				<option value="factor" selected>Gil per Cowrie</option>
+				<option value="profit">Difference</option>
 			</select>
 		</label>
 		<button id="fetchBtn">Fetch Prices</button>
@@ -107,6 +116,21 @@
 	<ul id="results"></ul>
 
 	<script>
+		const LABELS = {
+			buy: "Cowrie Cost",
+			profit: "Difference",
+			factor: "Gil per Cowrie",
+			source: "Source",
+			scope: "Scope",
+			min: "Cheapest Listing",
+			recent: "Most Recent Sold",
+			avg: "Average Sale Price",
+			vel: "Daily Sale Velocity",
+			world: "World",
+			dc: "Datacenter",
+			region: "Region"
+		};
+
 		const ITEM_DATA = {
 			30116: { buy: 500, name: "Ruby Red Dye" },
 			30117: { buy: 500, name: "Cherry Pink Dye" },
@@ -224,17 +248,15 @@
 				const avgP = pick(row.avgObj, scope, 'price');
 				const velQ = pick(row.velObj, scope, 'quantity');
 				li.innerHTML = `
-					<div><strong><a href="https://universalis.app/market/${row.id}" target="_blank" rel="noopener noreferrer">${row.name} (ID ${row.id})</a></strong>
-						<span class="pill">buy: ${row.buy != null ? nf.format(row.buy) : 'n/a'}</span>
-						<span class="pill">profit: ${row.profit != null ? nf.format(row.profit) : 'n/a'}</span>
-						<span class="pill">factor: ${row.factor != null ? row.factor.toFixed(2) : 'n/a'}</span>
-						<span class="pill">source: ${sourceKey}</span>
-						<span class="pill">scope: ${scope}</span>
+					<div><strong><a href="https://universalis.app/market/${row.id}" target="_blank" rel="noopener noreferrer">${row.name}</a></strong>
+						<span class="pill">${LABELS.factor}: ${row.factor != null ? row.factor.toFixed(2) : 'n/a'}</span>
+						<span class="pill">${LABELS.buy}: ${row.buy != null ? nf.format(row.buy) : 'n/a'}</span>
+						<span class="pill">${LABELS.profit}: ${row.profit != null ? nf.format(row.profit) : 'n/a'}</span>
 					</div>
-					<div class="muted">minListing: ${minP != null ? nf.format(minP) : 'n/a'}</div>
-					<div class="muted">recentPurchase: ${recentP != null ? nf.format(recentP) : 'n/a'}</div>
-					<div class="muted">averageSalePrice: ${avgP != null ? nf.format(avgP) : 'n/a'}</div>
-					<div class="muted">dailySaleVelocity: ${velQ != null ? nf.format(velQ) : 'n/a'}</div>
+					<div class="muted">${LABELS.min}: ${minP != null ? nf.format(minP) : 'n/a'}</div>
+					<div class="muted">${LABELS.recent}: ${recentP != null ? nf.format(recentP) : 'n/a'}</div>
+					<div class="muted">${LABELS.avg}: ${avgP != null ? nf.format(avgP) : 'n/a'}</div>
+					<div class="muted">${LABELS.vel}: ${velQ != null ? nf.format(velQ) : 'n/a'}</div>
 				`;
 				frag.appendChild(li);
 			});
