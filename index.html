@@ -80,13 +80,38 @@
 			color: #D1E9FF;
 			text-decoration: underline;
 		}
+
+		/* Style the combo box wrapper */
+		.combo-wrapper {
+			position: relative;
+			display: inline-block;
+		}
+
+		.combo-wrapper::after {
+			content: "\25BE";
+			position: absolute;
+			right: 10px;
+			top: 50%;
+			transform: translateY(-50%);
+			pointer-events: none;
+			color: #aaa;
+		}
+
+		.combo-wrapper input {
+			padding-right: 24px; /* leave space for arrow */
+		}
 	</style>
 </head>
 
 <body>
 	<h1>Island Sanctuary Universalis Price Check</h1>
 	<div class="controls">
-		<label>Datacenter: <input id="datacenter" type="text" value="Faerie" /></label>
+		<label>World:
+			<span class="combo-wrapper">
+				<input id="datacenter" type="text" list="dcList" value="Faerie" placeholder="Type or choose…" />
+			</span>
+		</label>
+		<datalist id="dcList"></datalist>
 		<label>
 			Use source:
 			<select id="sourceSelect">
@@ -117,6 +142,36 @@
 	<ul id="results"></ul>
 
 	<script>
+		// List of known datacenters. Users can still type anything in the box.
+		const DC_LIST = [
+			"North-America",
+			"Aether",
+			"Adamantoise", "Cactuar", "Faerie", "Gilgamesh", "Jenova", "Midgardsormr", "Sargatanas", "Siren",
+			"Crystal",
+			"Balmung", "Brynhildr", "Coeurl", "Diabolos", "Goblin", "Malboro", "Mateus", "Zalera",
+			"Dynamis",
+			"Cuchulainn", "Golem", "Halicarnassus", "Kraken", "Maduin", "Marilith", "Rafflesia", "Seraph",
+			"Primal",
+			"Behemoth", "Excalibur", "Exodus", "Famfrit", "Hyperion", "Lamia", "Leviathan", "Ultros",
+			"Europe",
+			"Chaos",
+			"Cerberus", "Louisoix", "Moogle", "Omega", "Phantom", "Ragnarok", "Sagittarius", "Spriggan",
+			"Light",
+			"Alpha", "Lich", "Odin", "Phoenix", "Raiden", "Shiva", "Twintania", "Zodiark",
+			"Japan",
+			"Elemental",
+			"Aegis", "Atomos", "Carbuncle", "Garuda", "Gungnir", "Kujata", "Tonberry", "Typhon",
+			"Gaia",
+			"Alexander", "Bahamut", "Durandal", "Fenrir", "Ifrit", "Ridill", "Tiamat", "Ultima",
+			"Mana",
+			"Anima", "Asura", "Chocobo", "Hades", "Ixion", "Masamune", "Pandaemonium", "Titan",
+			"Meteor",
+			"Belias", "Mandragora", "Ramuh", "Shinryu", "Unicorn", "Valefor", "Yojimbo", "Zeromus",
+			"Oceania",
+			"Materia",
+			"Bismarck", "Ravana", "Sephirot", "Sophia", "Zurvan"
+		];
+
 		const LABELS = {
 			buy: "Cowrie Cost",
 			profit: "Difference",
@@ -179,6 +234,16 @@
 			if (saved !== null) el.value = saved;
 			el.addEventListener(evt, () => localStorage.setItem(id, el.value));
 		});
+
+		// Populate datacenter datalist on load
+		(function populateDCList() {
+			const dl = document.getElementById('dcList');
+			if (!dl) return;
+			dl.innerHTML = '';
+			const frag = document.createDocumentFragment();
+			DC_LIST.forEach(dc => { const opt = document.createElement('option'); opt.value = dc; frag.appendChild(opt); });
+			dl.appendChild(frag);
+		})();
 
 		fetchBtn.addEventListener('click', run);
 		sourceSelect.addEventListener('change', render);
