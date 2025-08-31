@@ -93,6 +93,7 @@
 				<option value="min" selected>Cheapest Listing</option>
 				<option value="recent">Most Recent Sold</option>
 				<option value="avg">Average Sale Price</option>
+				<option value="vel">Daily Sale Velocity</option>
 			</select>
 		</label>
 		<label>
@@ -112,7 +113,7 @@
 		</label>
 		<button id="fetchBtn">Fetch Prices</button>
 	</div>
-	<div id="status" class="muted">Idle</div>
+	<div id="status" class="muted" role="status" aria-live="polite">Idle</div>
 	<ul id="results"></ul>
 
 	<script>
@@ -165,6 +166,20 @@
 		const scopeSelect = document.getElementById('scopeSelect');
 		const sortSelect = document.getElementById('sortSelect');
 
+		// Persist and restore user selections
+		const controlSpecs = [
+			['datacenter', 'input'],
+			['sourceSelect', 'change'],
+			['scopeSelect', 'change'],
+			['sortSelect', 'change'],
+		];
+		controlSpecs.forEach(([id, evt]) => {
+			const el = document.getElementById(id);
+			const saved = localStorage.getItem(id);
+			if (saved !== null) el.value = saved;
+			el.addEventListener(evt, () => localStorage.setItem(id, el.value));
+		});
+
 		fetchBtn.addEventListener('click', run);
 		sourceSelect.addEventListener('change', render);
 		scopeSelect.addEventListener('change', render);
@@ -172,31 +187,54 @@
 
 		const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 		let baseRows = [];
+		let ctrl; // AbortController for in-flight requests
 
 		function pick(obj, scope, field) {
 			if (!obj) return null;
-			const src = obj[scope] ?? null;
+			const src = obj?.[scope] ?? null;
 			return src ? src[field] ?? null : null;
 		}
 
 		async function run() {
-			status.textContent = 'Fetching...';
+			status.textContent = 'Fetching…';
 			results.innerHTML = '';
+			// prevent overlaps and long hangs
+			if (ctrl) ctrl.abort();
+			ctrl = new AbortController();
+			const t = setTimeout(() => ctrl.abort(), 15000);
+			// disable controls during fetch
+			const controls = [fetchBtn, datacenterInput, sourceSelect, scopeSelect, sortSelect];
+			controls.forEach(el => el.disabled = true);
 			try {
 				const dc = datacenterInput.value.trim() || 'Faerie';
 				const url = `https://universalis.app/api/v2/aggregated/${encodeURIComponent(dc)}/${ITEMS}`;
-				const res = await fetch(url);
+				const res = await fetch(url, { signal: ctrl.signal });
 				if (!res.ok) throw new Error('HTTP ' + res.status);
 				const data = await res.json();
 
+				// Precompute all scopes and sources once for each row
 				baseRows = (data.results || []).map(r => {
 					const id = r.itemId;
-					const { buy, name } = ITEM_DATA[id] || {};
+					const meta = ITEM_DATA[id];
+					const buy = Number.isFinite(meta?.buy) && meta.buy >= 0 ? meta.buy : null;
+					const name = meta?.name || `Item ${id}`;
 					const minObj = r?.nq?.minListing;
 					const recentObj = r?.nq?.recentPurchase;
 					const avgObj = r?.nq?.averageSalePrice;
 					const velObj = r?.nq?.dailySaleVelocity;
-					return { id, name: name || `Item ${id}`, buy, minObj, recentObj, avgObj, velObj };
+
+					const scopes = ['world', 'dc', 'region'];
+					const v = Object.fromEntries(scopes.map(s => [
+						s,
+						{
+							min: pick(minObj, s, 'price'),
+							recent: pick(recentObj, s, 'price'),
+							avg: pick(avgObj, s, 'price'),
+							vel: pick(velObj, s, 'quantity'),
+						}
+					]));
+
+					return { id, name, buy, v };
 				});
 
 				render();
@@ -204,21 +242,20 @@
 			} catch (err) {
 				console.error(err);
 				status.textContent = 'Error: ' + err.message;
+			} finally {
+				clearTimeout(t);
+				ctrl = null;
+				controls.forEach(el => el.disabled = false);
 			}
 		}
 
 		function computeDerived(row, sourceKey, scope) {
+			const srcVal = row.v?.[scope]?.[sourceKey] ?? null;
 			const buy = row.buy;
-			let srcVal = null;
-			if (sourceKey === 'min') srcVal = pick(row.minObj, scope, 'price');
-			else if (sourceKey === 'recent') srcVal = pick(row.recentObj, scope, 'price');
-			else if (sourceKey === 'avg') srcVal = pick(row.avgObj, scope, 'price');
-			else if (sourceKey === 'vel') srcVal = pick(row.velObj, scope, 'quantity');
-
-			const isNumeric = typeof srcVal === 'number' && Number.isFinite(srcVal);
-			const profit = isNumeric && buy != null ? (srcVal - buy) : null;
-			const factor = isNumeric && buy > 0 ? (srcVal / buy) : null;
-			return { profit, factor, srcVal };
+			const validBuy = Number.isFinite(buy) && buy > 0;
+			const profit = Number.isFinite(srcVal) && Number.isFinite(buy) ? (srcVal - buy) : null;
+			const factor = Number.isFinite(srcVal) && validBuy ? (srcVal / buy) : null;
+			return { srcVal, profit, factor };
 		}
 
 		function render() {
@@ -226,38 +263,60 @@
 			const scope = scopeSelect.value || 'world';
 			const sortMode = sortSelect.value || 'factor';
 
-			const rows = baseRows.map(r => {
-				const d = computeDerived(r, sourceKey, scope);
-				return { ...r, ...d };
-			});
+			const rows = baseRows.map(r => ({ ...r, ...computeDerived(r, sourceKey, scope) }));
 
 			rows.sort((a, b) => {
-				const aKey = sortMode === 'profit' ? a.profit : a.factor;
-				const bKey = sortMode === 'profit' ? b.profit : b.factor;
-				const av = aKey ?? -Infinity;
-				const bv = bKey ?? -Infinity;
-				return bv - av;
+				const getKey = r => sortMode === 'profit' ? r.profit : r.factor;
+				const av = getKey(a); const bv = getKey(b);
+				const an = Number.isFinite(av) ? av : -Infinity;
+				const bn = Number.isFinite(bv) ? bv : -Infinity;
+				if (bn !== an) return bn - an;
+				return String(a.name).localeCompare(String(b.name));
 			});
 
 			results.innerHTML = '';
 			const frag = document.createDocumentFragment();
 			rows.forEach(row => {
 				const li = document.createElement('li');
-				const minP = pick(row.minObj, scope, 'price');
-				const recentP = pick(row.recentObj, scope, 'price');
-				const avgP = pick(row.avgObj, scope, 'price');
-				const velQ = pick(row.velObj, scope, 'quantity');
-				li.innerHTML = `
-					<div><strong><a href="https://universalis.app/market/${row.id}" target="_blank" rel="noopener noreferrer">${row.name}</a></strong>
-						<span class="pill">${LABELS.factor}: ${row.factor != null ? row.factor.toFixed(2) : 'n/a'}</span>
-						<span class="pill">${LABELS.buy}: ${row.buy != null ? nf.format(row.buy) : 'n/a'}</span>
-						<span class="pill">${LABELS.profit}: ${row.profit != null ? nf.format(row.profit) : 'n/a'}</span>
-					</div>
-					<div class="muted">${LABELS.min}: ${minP != null ? nf.format(minP) : 'n/a'}</div>
-					<div class="muted">${LABELS.recent}: ${recentP != null ? nf.format(recentP) : 'n/a'}</div>
-					<div class="muted">${LABELS.avg}: ${avgP != null ? nf.format(avgP) : 'n/a'}</div>
-					<div class="muted">${LABELS.vel}: ${velQ != null ? nf.format(velQ) : 'n/a'}</div>
-				`;
+
+				// Title row with link and pills
+				const title = document.createElement('div');
+				const strong = document.createElement('strong');
+				const a = document.createElement('a');
+				a.href = `https://universalis.app/market/${row.id}`;
+				a.target = '_blank';
+				a.rel = 'noopener noreferrer';
+				a.textContent = row.name;
+				strong.appendChild(a);
+				title.appendChild(strong);
+
+				const mkPill = (text) => {
+					const s = document.createElement('span');
+					s.className = 'pill';
+					s.textContent = text;
+					return s;
+				};
+
+				title.append(
+					mkPill(`${LABELS.factor}: ${row.factor != null ? row.factor.toFixed(2) : 'n/a'}`),
+					mkPill(`${LABELS.buy}: ${row.buy != null ? nf.format(row.buy) : 'n/a'}`),
+					mkPill(`${LABELS.profit}: ${row.profit != null ? nf.format(row.profit) : 'n/a'}`)
+				);
+				li.appendChild(title);
+
+				// Detail rows
+				[
+					[LABELS.min, row.v?.[scope]?.min ?? null],
+					[LABELS.recent, row.v?.[scope]?.recent ?? null],
+					[LABELS.avg, row.v?.[scope]?.avg ?? null],
+					[LABELS.vel, row.v?.[scope]?.vel ?? null],
+				].forEach(([label, val]) => {
+					const d = document.createElement('div');
+					d.className = 'muted';
+					d.textContent = `${label}: ${val != null ? nf.format(val) : 'n/a'}`;
+					li.appendChild(d);
+				});
+
 				frag.appendChild(li);
 			});
 			results.appendChild(frag);
