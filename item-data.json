@@ -1,0 +1,23 @@
+{
+	"30116": { "buy": 500, "name": "Ruby Red Dye" },
+	"30117": { "buy": 500, "name": "Cherry Pink Dye" },
+	"30118": { "buy": 500, "name": "Canary Yellow Dye" },
+	"30119": { "buy": 500, "name": "Vanilla Yellow Dye" },
+	"30120": { "buy": 500, "name": "Dragoon Blue Dye" },
+	"30121": { "buy": 500, "name": "Turquoise Blue Dye" },
+	"30123": { "buy": 2500, "name": "Pearl White Dye" },
+	"30124": { "buy": 2500, "name": "Metallic Brass Dye" },
+	"30122": { "buy": 2500, "name": "Gunmetal Black Dye" },
+	"33922": { "buy": 750, "name": "Gatherer's Guerdon Materia IX" },
+	"33923": { "buy": 750, "name": "Gatherer's Guile Materia IX" },
+	"33924": { "buy": 750, "name": "Gatherer's Grasp Materia IX" },
+	"33925": { "buy": 750, "name": "Craftsman's Competence Materia IX" },
+	"33926": { "buy": 750, "name": "Craftsman's Cunning Materia IX" },
+	"33927": { "buy": 750, "name": "Craftsman's Command Materia IX" },
+	"33935": { "buy": 1500, "name": "Gatherer's Guerdon Materia X" },
+	"33936": { "buy": 1500, "name": "Gatherer's Guile Materia X" },
+	"33937": { "buy": 1500, "name": "Gatherer's Grasp Materia X" },
+	"33938": { "buy": 1500, "name": "Craftsman's Competence Materia X" },
+	"33939": { "buy": 1500, "name": "Craftsman's Cunning Materia X" },
+	"33940": { "buy": 1500, "name": "Craftsman's Command Materia X" }
+}

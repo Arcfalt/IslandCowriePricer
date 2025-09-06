@@ -5,413 +5,46 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Island Sanctuary Price Check</title>
-	<style>
-		body {
-			font-family: system-ui, sans-serif;
-			margin: 0;
-			background: #111;
-			color: #eee;
-			padding: 20px
-		}
-
-		h1 {
-			font-size: 24px;
-			margin-bottom: 8px
-		}
-
-		.controls {
-			margin-bottom: 20px
-		}
-
-		input,
-		select,
-		button {
-			padding: 8px;
-			margin: 4px;
-			border-radius: 6px;
-			border: 1px solid #555;
-			background: #222;
-			color: #eee
-		}
-
-		button {
-			cursor: pointer;
-			background: #444
-		}
-
-		ul {
-			list-style: none;
-			padding: 0
-		}
-
-		li {
-			background: #1b1b1b;
-			border: 1px solid #333;
-			margin-bottom: 10px;
-			padding: 12px;
-			border-radius: 8px
-		}
-
-		.muted {
-			color: #aaa
-		}
-
-		.row {
-			display: grid;
-			grid-template-columns: 1fr 1fr;
-			gap: 8px
-		}
-
-		.pill {
-			display: inline-block;
-			padding: 2px 8px;
-			border: 1px solid #333;
-			border-radius: 999px;
-			font-size: 12px;
-			margin-left: 6px
-		}
-
-		a {
-			color: #99C9FF;
-			text-decoration: none;
-		}
-
-		a:hover {
-			color: #D1E9FF;
-			text-decoration: underline;
-		}
-
-		/* Style the combo box wrapper */
-		.combo-wrapper {
-			position: relative;
-			display: inline-block;
-		}
-
-		.combo-wrapper::after {
-			content: "\25BE";
-			position: absolute;
-			right: 10px;
-			top: 50%;
-			transform: translateY(-50%);
-			pointer-events: none;
-			color: #aaa;
-		}
-
-		.combo-wrapper input {
-			padding-right: 24px;
-			/* leave space for arrow */
-		}
-	</style>
+	<link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 	<h1>Island Sanctuary Universalis Price Check</h1>
 	<div class="controls">
-		<label>World:
-			<span class="combo-wrapper">
-				<input id="datacenter" type="text" list="dcList" value="Faerie" placeholder="Type or choose…" />
-			</span>
-		</label>
+		<label for="datacenter">World:</label>
+		<span class="combo-wrapper">
+			<input id="datacenter" type="text" list="dcList" value="Faerie" placeholder="Type or choose..." />
+		</span>
 		<datalist id="dcList"></datalist>
-		<label>
-			Use source:
-			<select id="sourceSelect">
-				<option value="min" selected>Cheapest Listing</option>
-				<option value="recent">Most Recent Sold</option>
-				<option value="avg">Average Sale Price</option>
-				<option value="vel">Daily Sale Velocity</option>
-			</select>
-		</label>
-		<label>
-			Use scope:
-			<select id="scopeSelect">
-				<option value="world" selected>World</option>
-				<option value="dc">Datacenter</option>
-				<option value="region">Region</option>
-			</select>
-		</label>
-		<label>
-			Sort by:
-			<select id="sortSelect">
-				<option value="factor" selected>Gil per Cowrie</option>
-				<option value="profit">Difference</option>
-			</select>
-		</label>
+
+		<label for="sourceSelect">Use source:</label>
+		<select id="sourceSelect">
+			<option value="min" selected>Cheapest Listing</option>
+			<option value="recent">Most Recent Sold</option>
+			<option value="avg">Average Sale Price</option>
+			<option value="vel">Daily Sale Velocity</option>
+		</select>
+
+		<label for="scopeSelect">Use scope:</label>
+		<select id="scopeSelect">
+			<option value="world" selected>World</option>
+			<option value="dc">Datacenter</option>
+			<option value="region">Region</option>
+		</select>
+
+		<label for="sortSelect">Sort by:</label>
+		<select id="sortSelect">
+			<option value="factor" selected>Gil per Cowrie</option>
+			<option value="profit">Difference</option>
+		</select>
+
 		<button id="fetchBtn">Fetch Prices</button>
 	</div>
+
 	<div id="status" class="muted" role="status" aria-live="polite">Idle</div>
 	<ul id="results"></ul>
 
-	<script>
-		// Directory will be filled dynamically from Universalis endpoints.
-		let DIRECTORY = []; // combined list of regions, datacenters, and worlds
-
-		const LABELS = {
-			buy: "Cowrie Cost",
-			profit: "Difference",
-			factor: "Gil per Cowrie",
-			source: "Source",
-			scope: "Scope",
-			min: "Cheapest Listing",
-			recent: "Most Recent Sold",
-			avg: "Average Sale Price",
-			vel: "Daily Sale Velocity",
-			world: "World",
-			dc: "Datacenter",
-			region: "Region"
-		};
-
-		const ITEM_DATA = {
-			30116: { buy: 500, name: "Ruby Red Dye" },
-			30117: { buy: 500, name: "Cherry Pink Dye" },
-			30118: { buy: 500, name: "Canary Yellow Dye" },
-			30119: { buy: 500, name: "Vanilla Yellow Dye" },
-			30120: { buy: 500, name: "Dragoon Blue Dye" },
-			30121: { buy: 500, name: "Turquoise Blue Dye" },
-			30123: { buy: 2500, name: "Pearl White Dye" },
-			30124: { buy: 2500, name: "Metallic Brass Dye" },
-			30122: { buy: 2500, name: "Gunmetal Black Dye" },
-			33922: { buy: 750, name: "Gatherer's Guerdon Materia IX" },
-			33923: { buy: 750, name: "Gatherer's Guile Materia IX" },
-			33924: { buy: 750, name: "Gatherer's Grasp Materia IX" },
-			33925: { buy: 750, name: "Craftsman's Competence Materia IX" },
-			33926: { buy: 750, name: "Craftsman's Cunning Materia IX" },
-			33927: { buy: 750, name: "Craftsman's Command Materia IX" },
-			33935: { buy: 1500, name: "Gatherer's Guerdon Materia X" },
-			33936: { buy: 1500, name: "Gatherer's Guile Materia X" },
-			33937: { buy: 1500, name: "Gatherer's Grasp Materia X" },
-			33938: { buy: 1500, name: "Craftsman's Competence Materia X" },
-			33939: { buy: 1500, name: "Craftsman's Cunning Materia X" },
-			33940: { buy: 1500, name: "Craftsman's Command Materia X" }
-		};
-
-		const ITEMS = Object.keys(ITEM_DATA).join(',');
-
-		const status = document.getElementById('status');
-		const results = document.getElementById('results');
-		const datacenterInput = document.getElementById('datacenter');
-		const fetchBtn = document.getElementById('fetchBtn');
-		const sourceSelect = document.getElementById('sourceSelect');
-		const scopeSelect = document.getElementById('scopeSelect');
-		const sortSelect = document.getElementById('sortSelect');
-
-		// Persist and restore user selections
-		const controlSpecs = [
-			['datacenter', 'input'],
-			['sourceSelect', 'change'],
-			['scopeSelect', 'change'],
-			['sortSelect', 'change'],
-		];
-		controlSpecs.forEach(([id, evt]) => {
-			const el = document.getElementById(id);
-			const saved = localStorage.getItem(id);
-			if (saved !== null) el.value = saved;
-			el.addEventListener(evt, () => localStorage.setItem(id, el.value));
-		});
-
-		// Build datalist from a simple string array
-		function populateDCList(list) {
-			const dl = document.getElementById('dcList');
-			if (!dl) return;
-			dl.innerHTML = '';
-			const frag = document.createDocumentFragment();
-			list.forEach(name => { const opt = document.createElement('option'); opt.value = name; frag.appendChild(opt); });
-			dl.appendChild(frag);
-		}
-
-		// Fetch regions/DCs/worlds and construct a combined list
-		async function loadDirectory() {
-			try {
-				const [dcRes, worldRes] = await Promise.all([
-					fetch('https://universalis.app/api/v2/data-centers'),
-					fetch('https://universalis.app/api/v2/worlds')
-				]);
-				if (!dcRes.ok || !worldRes.ok) throw new Error('Directory HTTP ' + (dcRes.status || '') + '/' + (worldRes.status || ''));
-				const [dcArr, worldArr] = await Promise.all([dcRes.json(), worldRes.json()]);
-				// Map world id to name
-				const worldById = new Map(worldArr.map(w => [w.id, w.name]));
-				// Collect unique regions, dcs and world names in the desired order: Region -> DC -> Worlds
-				const seenRegion = new Set();
-				const seenDC = new Set();
-				const seenWorld = new Set();
-				const out = [];
-				for (const dc of dcArr) {
-					if (dc.region && !seenRegion.has(dc.region)) { seenRegion.add(dc.region); out.push(dc.region); }
-					if (dc.name && !seenDC.has(dc.name)) { seenDC.add(dc.name); out.push(dc.name); }
-					for (const wid of dc.worlds || []) {
-						const wname = worldById.get(wid);
-						if (wname && !seenWorld.has(wname)) { seenWorld.add(wname); out.push(wname); }
-					}
-				}
-				DIRECTORY = out;
-				populateDCList(DIRECTORY);
-			} catch (e) {
-				console.warn('Directory load failed:', e);
-				// fallback to current input only
-				populateDCList([datacenterInput.value || 'Faerie']);
-			}
-		}
-
-		// Kick off directory load
-		loadDirectory();
-
-		fetchBtn.addEventListener('click', run);
-		sourceSelect.addEventListener('change', render);
-		scopeSelect.addEventListener('change', render);
-		sortSelect.addEventListener('change', render);
-
-		const nfGil = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-		const nfQty = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
-		const nfFactor = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-		let baseRows = [];
-		let ctrl; // AbortController for in-flight requests
-
-		function pick(obj, scope, field) {
-			if (!obj) return null;
-			const src = obj?.[scope] ?? null;
-			return src ? src[field] ?? null : null;
-		}
-
-		async function run() {
-			status.textContent = 'Fetching…';
-			results.innerHTML = '';
-			// prevent overlaps and long hangs
-			if (ctrl) ctrl.abort();
-			ctrl = new AbortController();
-			const t = setTimeout(() => ctrl.abort(), 15000);
-			// disable controls during fetch
-			const controls = [fetchBtn, datacenterInput, sourceSelect, scopeSelect, sortSelect];
-			controls.forEach(el => el.disabled = true);
-			try {
-				const dc = datacenterInput.value.trim() || 'Faerie';
-				const url = `https://universalis.app/api/v2/aggregated/${encodeURIComponent(dc)}/${ITEMS}`;
-				const res = await fetch(url, { signal: ctrl.signal });
-				if (!res.ok) throw new Error('HTTP ' + res.status);
-				const data = await res.json();
-
-				// Precompute all scopes and sources once for each row
-				baseRows = (data.results || []).map(r => {
-					const id = r.itemId;
-					const meta = ITEM_DATA[id];
-					const buy = Number.isFinite(meta?.buy) && meta.buy >= 0 ? meta.buy : null;
-					const name = meta?.name || `Item ${id}`;
-					const minObj = r?.nq?.minListing;
-					const recentObj = r?.nq?.recentPurchase;
-					const avgObj = r?.nq?.averageSalePrice;
-					const velObj = r?.nq?.dailySaleVelocity;
-
-					const scopes = ['world', 'dc', 'region'];
-					const v = Object.fromEntries(scopes.map(s => [
-						s,
-						{
-							min: pick(minObj, s, 'price'),
-							recent: pick(recentObj, s, 'price'),
-							avg: pick(avgObj, s, 'price'),
-							vel: pick(velObj, s, 'quantity'),
-						}
-					]));
-
-					return { id, name, buy, v };
-				});
-
-				render();
-				status.textContent = `Fetched ${baseRows.length} items from ${datacenterInput.value || 'Faerie'}`;
-			} catch (err) {
-				console.error(err);
-				status.textContent = 'Error: ' + err.message;
-			} finally {
-				clearTimeout(t);
-				ctrl = null;
-				controls.forEach(el => el.disabled = false);
-			}
-		}
-
-		function computeDerived(row, sourceKey, scope) {
-			const srcVal = row.v?.[scope]?.[sourceKey] ?? null;
-			const buy = row.buy;
-			const validBuy = Number.isFinite(buy) && buy > 0;
-			const profit = Number.isFinite(srcVal) && Number.isFinite(buy) ? (srcVal - buy) : null;
-			const factor = Number.isFinite(srcVal) && validBuy ? (srcVal / buy) : null;
-			return { srcVal, profit, factor };
-		}
-
-		// Reusable DOM nodes keyed by item id
-		const nodeById = new Map();
-		const refsById = new Map();
-
-		function buildRowNode(row) {
-			const li = document.createElement('li');
-
-			// Title row with link and pills
-			const title = document.createElement('div');
-			const strong = document.createElement('strong');
-			const a = document.createElement('a');
-			a.href = `https://universalis.app/market/${row.id}`;
-			a.target = '_blank';
-			a.rel = 'noopener noreferrer';
-			a.textContent = row.name;
-			strong.appendChild(a);
-			title.appendChild(strong);
-
-			const pillFactor = document.createElement('span'); pillFactor.className = 'pill';
-			const pillBuy = document.createElement('span'); pillBuy.className = 'pill';
-			const pillProfit = document.createElement('span'); pillProfit.className = 'pill';
-			title.append(pillFactor, pillBuy, pillProfit);
-			li.appendChild(title);
-
-			// Detail rows
-			const dMin = document.createElement('div'); dMin.className = 'muted';
-			const dRecent = document.createElement('div'); dRecent.className = 'muted';
-			const dAvg = document.createElement('div'); dAvg.className = 'muted';
-			const dVel = document.createElement('div'); dVel.className = 'muted';
-			li.append(dMin, dRecent, dAvg, dVel);
-
-			refsById.set(row.id, { a, pillFactor, pillBuy, pillProfit, dMin, dRecent, dAvg, dVel });
-			return li;
-		}
-
-		function updateRowNode(li, row, scope) {
-			const r = refsById.get(row.id);
-			if (!r) return;
-			r.a.textContent = row.name;
-			r.a.href = `https://universalis.app/market/${row.id}`;
-			r.pillFactor.textContent = `${LABELS.factor}: ${row.factor != null ? nfFactor.format(row.factor) : 'n/a'}`;
-			r.pillBuy.textContent = `${LABELS.buy}: ${row.buy != null ? nfGil.format(row.buy) : 'n/a'}`;
-			r.pillProfit.textContent = `${LABELS.profit}: ${row.profit != null ? nfGil.format(row.profit) : 'n/a'}`;
-
-			const vv = row.v?.[scope] || {};
-			r.dMin.textContent = `${LABELS.min}: ${Number.isFinite(vv.min) ? nfGil.format(vv.min) : 'n/a'}`;
-			r.dRecent.textContent = `${LABELS.recent}: ${Number.isFinite(vv.recent) ? nfGil.format(vv.recent) : 'n/a'}`;
-			r.dAvg.textContent = `${LABELS.avg}: ${Number.isFinite(vv.avg) ? nfGil.format(vv.avg) : 'n/a'}`;
-			r.dVel.textContent = `${LABELS.vel}: ${Number.isFinite(vv.vel) ? nfQty.format(vv.vel) : 'n/a'}`;
-		}
-
-		function render() {
-			const sourceKey = sourceSelect.value || 'min';
-			const scope = scopeSelect.value || 'world';
-			const sortMode = sortSelect.value || 'factor';
-
-			const rows = baseRows.map(r => ({ ...r, ...computeDerived(r, sourceKey, scope) }));
-
-			rows.sort((a, b) => {
-				const getKey = r => sortMode === 'profit' ? r.profit : r.factor;
-				const av = getKey(a); const bv = getKey(b);
-				const an = Number.isFinite(av) ? av : -Infinity;
-				const bn = Number.isFinite(bv) ? bv : -Infinity;
-				if (bn !== an) return bn - an;
-				return String(a.name).localeCompare(String(b.name));
-			});
-
-			const frag = document.createDocumentFragment();
-			rows.forEach(row => {
-				let li = nodeById.get(row.id);
-				if (!li) { li = buildRowNode(row); nodeById.set(row.id, li); }
-				updateRowNode(li, row, scope);
-				frag.appendChild(li);
-			});
-			results.replaceChildren(frag);
-		}
-	</script>
+	<script src="app.js"></script>
 </body>
 
 </html>

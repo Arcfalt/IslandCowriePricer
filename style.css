@@ -1,0 +1,116 @@
+body {
+	font-family: system-ui, sans-serif;
+	margin: 0;
+	background: #111;
+	color: #eee;
+	padding: 20px;
+}
+
+h1 {
+	font-size: 24px;
+	margin-bottom: 8px;
+}
+
+.controls {
+	margin-bottom: 20px;
+}
+
+input,
+select,
+button {
+	padding: 8px;
+	margin: 4px;
+	border-radius: 6px;
+	border: 1px solid #555;
+	background: #222;
+	color: #eee;
+}
+
+button {
+	cursor: pointer;
+	background: #444;
+}
+
+ul {
+	list-style: none;
+	padding: 0;
+}
+
+li {
+	background: #1b1b1b;
+	border: 1px solid #333;
+	margin-bottom: 10px;
+	padding: 12px;
+	border-radius: 8px;
+}
+
+.muted {
+	color: #aaa;
+}
+
+.pill {
+	display: inline-block;
+	padding: 2px 8px;
+	border: 1px solid #333;
+	border-radius: 999px;
+	font-size: 12px;
+	margin-left: 6px;
+}
+
+/* Profit coloring */
+.pill.pos {
+	color: #b9f6c9;
+	background: #112317;
+	border-color: #2e6b3c;
+}
+
+.pill.neg {
+	color: #ffc1c1;
+	background: #2b1212;
+	border-color: #6b2e2e;
+}
+
+/* Focus styles for a11y */
+input:focus,
+select:focus,
+button:focus {
+	outline: 2px solid #66aaff;
+	outline-offset: 2px;
+	box-shadow: 0 0 0 2px rgba(102, 170, 255, 0.15);
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+	outline: 2px solid #66aaff;
+}
+
+a {
+	color: #99C9FF;
+	text-decoration: none;
+}
+
+a:hover {
+	color: #D1E9FF;
+	text-decoration: underline;
+}
+
+/* Style the combo box wrapper */
+.combo-wrapper {
+	position: relative;
+	display: inline-block;
+}
+
+.combo-wrapper::after {
+	content: "\25BE";
+	position: absolute;
+	right: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	pointer-events: none;
+	color: #aaa;
+}
+
+.combo-wrapper input {
+	padding-right: 24px;
+}
